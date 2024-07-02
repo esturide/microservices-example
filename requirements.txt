@@ -1,0 +1,5 @@
+microdot
+tinydb
+bcrypt
+pyzmq
+python-dotenv
