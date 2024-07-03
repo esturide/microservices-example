@@ -1,4 +1,5 @@
 import asyncio
+import sys
 
 import dotenv
 from microdot.asgi import Microdot, with_websocket
@@ -55,7 +56,8 @@ async def message(request, ws):
 
             sock.send_json({
                 "from": "user",
-                "body": "Hello world"
+                "to": "security",
+                "body": recv_ws
             })
 
             recv_sock = await sock.recv_string()
@@ -70,6 +72,8 @@ def healthy(request):
 
 
 if __name__ == "__main__":
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
     sock.connect(DEFAULT_SOCKET_CLIENT_SOCKET)
     app.run(debug=True, port=SERVER_PORT)

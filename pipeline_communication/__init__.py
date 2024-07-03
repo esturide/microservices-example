@@ -1,6 +1,9 @@
 import asyncio
 import dataclasses
 import collections
+import sys
+import json
+import abc
 
 import zmq
 import zmq.asyncio
@@ -8,27 +11,58 @@ import zmq.asyncio
 
 @dataclasses.dataclass
 class Message:
-    pass
+    sender: str
+    addressee: str
+    body: str
+
+    @property
+    def json(self) -> dict:
+        return {
+            "sender": self.sender,
+            "addressee": self.addressee,
+            "body": self.body
+        }
+
+    @staticmethod
+    def create_from_b(_recv: bytes):
+        decode = _recv.decode()
 
 
-class PipelineCommunication:
+class PipelineInterface(abc.ABC):
+    @abc.abstractmethod
+    async def run(self): ...
+
+
+class PipelineCommunicationServer(PipelineInterface):
     def __init__(self, socket: zmq.asyncio.Socket) -> None:
         self.__socket = socket
         self.__queue = collections.deque()
 
-    def run(self):
-        async def asyncio_run():
-            while True:
-                print("Waiting...")
+    async def run(self):
+        while True:
+            print("Waiting...")
 
-                recv = await self.__socket.recv()
+            recv = await self.__socket.recv()
+            recv_s = recv.decode()
 
-                print(recv)
-                self.__queue.appendleft(recv)
+            self.__queue.appendleft(json.loads(recv_s))
+            print(self.__queue)
 
-                await self.__socket.send_string("Ok")
+            await self.__socket.send_string("Ok, message received")
 
-        asyncio.run(asyncio_run())
+    async def recv(self):
+        pass
+
+    async def send(self):
+        pass
+
+
+class PipelineClient(PipelineInterface):
+    def __init__(self):
+        pass
+
+    async def run(self):
+        pass
 
 
 if __name__ == '__main__':
@@ -44,7 +78,8 @@ if __name__ == '__main__':
 
     sock.bind(DEFAULT_SOCKET_SERVER_SOCKET)
 
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-    pipeline = PipelineCommunication(sock)
-    pipeline.run()
+    server = PipelineCommunicationServer(sock)
+    asyncio.run(server.run())
