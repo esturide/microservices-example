@@ -5,7 +5,7 @@ from microdot.asgi import Microdot, with_websocket
 from microdot.sse import with_sse
 from tinydb import TinyDB
 from zmq import PAIR as ZMQ_PAIR
-from zmq.asyncio import Context
+from zmq.asyncio import Context, Socket
 
 from security_service.models import UserModel, TokenModel
 
@@ -13,15 +13,14 @@ dotenv.load_dotenv()
 config = dotenv.dotenv_values()
 
 SERVER_PORT = config["DEFAULT_SERVER_SECURITY_MANAGE_PORT"]
-SOCKET_QUEUE_PORT = config["SOCKET_QUEUE_PORT"]
-SOCKET_QUEUE_ADDRESS = "tcp://*:%s" % SOCKET_QUEUE_PORT
+DEFAULT_SOCKET_CLIENT_SOCKET = config["DEFAULT_SOCKET_CLIENT_SOCKET"]
 
 app = Microdot()
 db_user = TinyDB(config["DATA_USER_FILENAME"])
 db_tokens = TinyDB(config["DATA_TOKEN_CACHE_FILENAME"])
 
-ctx = Context()
-sock = ctx.socket(ZMQ_PAIR)
+ctx: Context = Context()
+sock: Socket = ctx.socket(ZMQ_PAIR)
 
 
 @app.post('/login')
@@ -81,17 +80,18 @@ def token_update(request):
 async def message(request, ws):
     async def queue_message():
         while True:
-            recv = await ws.receive()
-            await sock.send(recv.encode())
+            recv_ws = await ws.receive()
+            print(f"Ok - Received: {recv_ws}")
 
-            msg = await sock.recv()
-            await ws.send(
-                f"Echo: {msg}"
-            )
+            sock.send_json({
+                "from": "security",
+                "body": "Hello world"
+            })
 
-    task_message_queue = asyncio.create_task(queue_message())
+            recv_sock = await sock.recv_string()
+            await ws.send(f"Ok - Received: {recv_sock}")
 
-    await task_message_queue
+    await queue_message()
 
 
 @app.route('/fibonacci')
@@ -129,5 +129,6 @@ async def events(request, sse):
 
 
 if __name__ == '__main__':
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    sock.connect(DEFAULT_SOCKET_CLIENT_SOCKET)
     app.run(debug=True, port=SERVER_PORT)
-    sock.bind(SOCKET_QUEUE_ADDRESS)
