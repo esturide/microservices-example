@@ -1,8 +1,8 @@
 import asyncio
 
 import dotenv
-from microdot import Microdot
-from microdot.websocket import with_websocket
+from microdot.asgi import Microdot, with_websocket
+from microdot.sse import with_sse
 from tinydb import TinyDB
 from zmq import PAIR as ZMQ_PAIR
 from zmq.asyncio import Context
@@ -60,13 +60,12 @@ async def register(request):
 
 @app.get('/token/validate')
 def token_validate(request):
-    token = TokenModel(**request.json)
-    query_token = TokenModel.load(db_tokens, token.username)
+    query_token = TokenModel.load(db_tokens, request.json["username"])
 
     if query_token is None:
         return "Failure, token not found", 404
 
-    if token.token != query_token.token:
+    if request.json["token"] != query_token.token:
         return "Failure, token is invalid", 403
 
     return "Success, token is valid", 200
@@ -117,6 +116,16 @@ async def echo(request, ws):
 @app.get("/healthy")
 def healthy(request):
     return "Ok", 200
+
+
+@app.route('/events')
+@with_sse
+async def events(request, sse):
+    for i in range(10):
+        await asyncio.sleep(1)
+        await sse.send({
+            'counter': i
+        })
 
 
 if __name__ == '__main__':
